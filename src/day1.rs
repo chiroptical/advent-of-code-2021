@@ -1,6 +1,6 @@
 // Use main's lib module here?
-use super::lib::read_lines;
-use std::iter::Peekable;
+use super::lib::read_file_and_parse_lines;
+use std::clone::Clone;
 
 fn count_increasing_integers(vec: Vec<u32>) -> u32 {
     if vec.len() < 2 {
@@ -10,43 +10,41 @@ fn count_increasing_integers(vec: Vec<u32>) -> u32 {
     return zipped.fold(0, |acc, (x, y)| if x < y { acc + 1 } else { acc });
 }
 
-fn make_triples(vec: Vec<u32>) -> Vec<Vec<u32>> {
-    let mut peeky = vec.iter().peekable();
-    let mut triplets: Vec<u32> = Vec::new();
-
-    let mut x = 0;
-    while x < vec.len() {
-        let snd = peeky.peek();
-        let third = peeky.peek();
-        // If snd and third are Some, push a new triple...
-        peeky.next();
-        x += 1;
+// part1 :: List Int -> Int
+// part1 (a : b : rest) = (if a < b then 1 else 0) + part1 (b : rest)
+// part1 _ = 0
+fn part1(v: &Vec<u32>) -> u32 {
+    match v.as_slice() {
+        [x, y, rest @ ..] => {
+            let mut next: Vec<u32> = Vec::new();
+            next.push(y.clone());
+            next.extend(rest.to_vec());
+            return (if x < y { 1 } else { 0 }) + part1(&next);
+        }
+        _ => 0,
     }
-
-    return vec![vec![0]];
 }
 
-pub fn part1() {
-    match read_lines("./inputs/day1.txt") {
-        Ok(lines) => {
-            let mut sonar_sweep_depths: Vec<u32> = Vec::new();
-            for line in lines {
-                // We're not really concerned about being unable to read a line...
-                let s = line.unwrap();
-
-                match s.parse::<u32>() {
-                    Ok(i) => sonar_sweep_depths.push(i),
-                    _ => panic!(
-                        "Unable to read the following unsigned integer, got: {:?}",
-                        s
-                    ),
-                };
-            }
-            println!(
-                "The result is {:?}",
-                count_increasing_integers(sonar_sweep_depths)
-            );
+// part2 :: List Int -> Int
+// part2 (a : rest@(_ : _ : d : _)) = (if a < d then 1 else 0) + part2 rest
+// part2 _ = 0
+fn part2(v: &Vec<u32>) -> u32 {
+    match v.as_slice() {
+        [x, y, z, a, rest @ ..] => {
+            let mut next: Vec<u32> = Vec::new();
+            next.push(y.clone());
+            next.push(z.clone());
+            next.push(a.clone());
+            next.extend(rest.to_vec());
+            return (if x < a { 1 } else { 0 }) + part2(&next);
         }
-        _ => println!("Unable to read the input..."),
+        _ => 0,
     }
+}
+
+pub fn run() {
+    let sonar_sweep_depths: Vec<u32> =
+        read_file_and_parse_lines("./inputs/day1.txt", |s| s.parse::<u32>().ok());
+    println!("Part 1: {:?}", part1(&sonar_sweep_depths));
+    println!("Part 2: {:?}", part2(&sonar_sweep_depths));
 }
