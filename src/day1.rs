@@ -2,11 +2,11 @@
 use super::lib::read_file_and_parse_lines;
 use std::clone::Clone;
 
-fn count_increasing_integers(vec: Vec<u32>) -> u32 {
-    if vec.len() < 2 {
+fn zip_solution(offset: usize, vec: &Vec<u32>) -> u32 {
+    if vec.len() < offset + 1 {
         return 0;
     };
-    let zipped = vec.iter().zip(vec[1..].iter());
+    let zipped = vec.iter().zip(vec[offset..].iter());
     return zipped.fold(0, |acc, (x, y)| if x < y { acc + 1 } else { acc });
 }
 
@@ -47,4 +47,12 @@ pub fn run() {
         read_file_and_parse_lines("./inputs/day1.txt", |s| s.parse::<u32>().ok());
     println!("Part 1: {:?}", part1(&sonar_sweep_depths));
     println!("Part 2: {:?}", part2(&sonar_sweep_depths));
+    println!(
+        "Part 1 (using zip): {:?}",
+        zip_solution(1, &sonar_sweep_depths)
+    );
+    println!(
+        "Part 2 (using zip): {:?}",
+        zip_solution(3, &sonar_sweep_depths)
+    );
 }
