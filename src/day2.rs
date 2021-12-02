@@ -1,7 +1,9 @@
 use nom::{
+    branch::alt,
     bytes::complete::tag,
     character::complete::digit1,
     combinator::{map_res, opt, recognize},
+    error::{context, VerboseError},
     IResult,
 };
 use std::fmt;
@@ -26,14 +28,35 @@ impl fmt::Display for Position {
     }
 }
 
-// fn determine_position(lines: &Vec<&str>) -> Position {
-//     let mut initial_position = Position(0, 0);
-//     lines.iter().map(|s| {
-//         match s {
-//             "forward N" => ...
-//         }
-//     });
-// }
+// Basic structure from https://blog.logrocket.com/parsing-in-rust-with-nom
+#[derive(Debug)]
+enum Movement {
+    Forward,
+    Up,
+    Down,
+}
+
+impl From<&str> for Movement {
+    fn from(i: &str) -> Self {
+        match i.to_owned().as_str() {
+            "forward" => Movement::Forward,
+            "up" => Movement::Up,
+            "down" => Movement::Down,
+            _ => unimplemented!("The only acceptable movements are: forward, up, or down"),
+        }
+    }
+}
+
+type Res<T, U> = IResult<T, U, VerboseError<T>>;
+
+fn parse_movement(input: &str) -> Res<&str, Movement> {
+    context(
+        "movement",
+        // Can use tag_no_case for case insensitive match
+        alt((tag("forward"), tag("up"), tag("down"))),
+    )(input)
+    .map(|(next_input, res)| (next_input, res.into()))
+}
 
 fn position_parser(input: &str) -> IResult<&str, Position> {
     let (input, forward) = opt(tag("forward "))(input)?;
