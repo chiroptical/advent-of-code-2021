@@ -2,20 +2,50 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::digit1,
-    combinator::{map_res, opt, recognize},
+    combinator::{map_res, recognize},
     error::{context, VerboseError},
     IResult,
 };
 use std::fmt;
 
-fn parse_digit(input: &str) -> IResult<&str, i64> {
+// A wrapper around IResult for our custom parser
+type Res<T, U> = IResult<T, U, VerboseError<T>>;
+
+// Parse a number like 42
+fn parse_digit(input: &str) -> Res<&str, i64> {
     map_res(recognize(digit1), str::parse)(input)
+}
+
+trait Semigroup {
+    fn mappend(_: Self, _: Self) -> Self;
+}
+
+trait Monoid {
+    fn mempty() -> Self;
 }
 
 #[derive(Debug)]
 struct Position {
     horizontal: i64,
     depth: i64,
+}
+
+impl Semigroup for Position {
+    fn mappend(fst: Position, snd: Position) -> Position {
+        Position {
+            horizontal: fst.horizontal + snd.horizontal,
+            depth: fst.depth + snd.depth,
+        }
+    }
+}
+
+impl Monoid for Position {
+    fn mempty() -> Position {
+        Position {
+            horizontal: 0,
+            depth: 0,
+        }
+    }
 }
 
 impl fmt::Display for Position {
@@ -47,8 +77,6 @@ impl From<&str> for Movement {
     }
 }
 
-type Res<T, U> = IResult<T, U, VerboseError<T>>;
-
 fn parse_movement(input: &str) -> Res<&str, Movement> {
     context(
         "movement",
@@ -58,34 +86,64 @@ fn parse_movement(input: &str) -> Res<&str, Movement> {
     .map(|(next_input, res)| (next_input, res.into()))
 }
 
-fn position_parser(input: &str) -> IResult<&str, Position> {
-    let (input, forward) = opt(tag("forward "))(input)?;
-    let (input, up) = opt(tag("up "))(input)?;
-    let (input, down) = opt(tag("down "))(input)?;
-    let (input, u) = parse_digit(input)?;
-    match (forward, up, down) {
-        (Some(_), None, None) => Ok((
+fn position_parser(input: &str) -> Res<&str, Position> {
+    let (input, movement) = parse_movement(input)?;
+    let (input, _) = tag(" ")(input)?;
+    let (input, value) = parse_digit(input)?;
+    match movement {
+        Movement::Forward => Ok((
             input,
             Position {
-                horizontal: u,
+                horizontal: value,
                 depth: 0,
             },
         )),
-        (None, Some(_), None) => Ok((
+        Movement::Up => Ok((
             input,
             Position {
                 horizontal: 0,
-                depth: -u,
+                depth: -value,
             },
         )),
-        (None, None, Some(_)) => Ok((
+        Movement::Down => Ok((
             input,
             Position {
                 horizontal: 0,
-                depth: u,
+                depth: value,
             },
         )),
-        _ => panic!("Unable to parse string {}", input),
+    }
+}
+
+fn aim_parser(input: &str) -> Res<&str, Aim> {
+    let (input, movement) = parse_movement(input)?;
+    let (input, _) = tag(" ")(input)?;
+    let (input, value) = parse_digit(input)?;
+    match movement {
+        Movement::Forward => Ok((
+            input,
+            Aim {
+                horizontal: value,
+                depth: 0,
+                aim: value,
+            },
+        )),
+        Movement::Up => Ok((
+            input,
+            Aim {
+                horizontal: 0,
+                depth: 0,
+                aim: -value,
+            },
+        )),
+        Movement::Down => Ok((
+            input,
+            Aim {
+                horizontal: 0,
+                depth: 0,
+                aim: value,
+            },
+        )),
     }
 }
 
@@ -96,6 +154,35 @@ struct Aim {
     aim: i64,
 }
 
+impl Semigroup for Aim {
+    fn mappend(fst: Aim, snd: Aim) -> Aim {
+        let is_horizontal = snd.horizontal > 0;
+        Aim {
+            horizontal: fst.horizontal + snd.horizontal,
+            depth: if is_horizontal {
+                fst.depth + fst.aim * snd.horizontal
+            } else {
+                fst.depth
+            },
+            aim: if is_horizontal {
+                fst.aim
+            } else {
+                fst.aim + snd.aim
+            },
+        }
+    }
+}
+
+impl Monoid for Aim {
+    fn mempty() -> Aim {
+        Aim {
+            horizontal: 0,
+            depth: 0,
+            aim: 0,
+        }
+    }
+}
+
 impl fmt::Display for Aim {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -103,40 +190,6 @@ impl fmt::Display for Aim {
             "Aim(horizontal: {}, depth: {}, aim: {})",
             self.horizontal, self.depth, self.aim
         )
-    }
-}
-
-fn aim_parser(input: &str) -> IResult<&str, Aim> {
-    let (input, forward) = opt(tag("forward "))(input)?;
-    let (input, up) = opt(tag("up "))(input)?;
-    let (input, down) = opt(tag("down "))(input)?;
-    let (input, u) = parse_digit(input)?;
-    match (forward, up, down) {
-        (Some(_), None, None) => Ok((
-            input,
-            Aim {
-                horizontal: u,
-                depth: 0,
-                aim: u,
-            },
-        )),
-        (None, Some(_), None) => Ok((
-            input,
-            Aim {
-                horizontal: 0,
-                depth: 0,
-                aim: -u,
-            },
-        )),
-        (None, None, Some(_)) => Ok((
-            input,
-            Aim {
-                horizontal: 0,
-                depth: 0,
-                aim: u,
-            },
-        )),
-        _ => panic!("Unable to parse string {}", input),
     }
 }
 
@@ -152,23 +205,7 @@ fn part1() -> Position {
             let (_, pos) = position_parser(s).unwrap();
             pos
         })
-        .fold(
-            Position {
-                horizontal: 0,
-                depth: 0,
-            },
-            |Position {
-                 horizontal: ih,
-                 depth: id,
-             },
-             Position {
-                 horizontal: x,
-                 depth: y,
-             }| Position {
-                horizontal: ih + x,
-                depth: id + y,
-            },
-        )
+        .fold(Monoid::mempty(), |x, y| Semigroup::mappend(x, y))
 }
 
 fn part2() -> Aim {
@@ -183,27 +220,7 @@ fn part2() -> Aim {
             let (_, pos) = aim_parser(s).unwrap();
             pos
         })
-        .fold(
-            Aim {
-                horizontal: 0,
-                depth: 0,
-                aim: 0,
-            },
-            |Aim {
-                 horizontal: ih,
-                 depth: id,
-                 aim: ia,
-             },
-             Aim {
-                 horizontal: h,
-                 depth: _,
-                 aim: a,
-             }| Aim {
-                horizontal: ih + h,
-                depth: if h > 0 { id + ia * h } else { id },
-                aim: if h > 0 { ia } else { ia + a },
-            },
-        )
+        .fold(Monoid::mempty(), |x, y| Semigroup::mappend(x, y))
 }
 
 pub fn run() {
