@@ -196,7 +196,7 @@ impl fmt::Display for Aim {
 fn part1() -> Position {
     let lines: Vec<&str> = include_str!("../inputs/day2.txt")
         .trim_end()
-        .split("\n")
+        .lines()
         .collect();
     lines
         .iter()
@@ -211,7 +211,7 @@ fn part1() -> Position {
 fn part2() -> Aim {
     let lines: Vec<&str> = include_str!("../inputs/day2.txt")
         .trim_end()
-        .split("\n")
+        .lines()
         .collect();
     lines
         .iter()
