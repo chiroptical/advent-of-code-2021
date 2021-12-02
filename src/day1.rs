@@ -10,6 +10,32 @@ fn zip_solution(offset: usize, vec: &Vec<u32>) -> u32 {
     return zipped.fold(0, |acc, (x, y)| if x < y { acc + 1 } else { acc });
 }
 
+fn build_subvectors(size: usize, vec: &Vec<u32>) -> Vec<Vec<u32>> {
+    let mut res: Vec<Vec<u32>> = Vec::new();
+    for win in vec.windows(size) {
+        res.push(win.to_vec());
+    }
+    return res;
+}
+
+// This one works for offset = 1 but not offset = 3 and I don't care to figure out why :smile:
+fn with_windows(offset: usize, vec: &Vec<u32>) -> u32 {
+    if vec.len() < offset + 1 {
+        return 0;
+    };
+    let subvectors = build_subvectors(offset, vec);
+    let zipped = subvectors.iter().zip(subvectors[offset..].iter());
+    return zipped.fold(0, |acc, (x, y)| {
+        let x_sum: u32 = x.clone().iter().sum();
+        let y_sum: u32 = y.clone().iter().sum();
+        if x_sum < y_sum {
+            acc + 1
+        } else {
+            acc
+        }
+    });
+}
+
 // part1 :: List Int -> Int
 // part1 (a : b : rest) = (if a < b then 1 else 0) + part1 (b : rest)
 // part1 _ = 0
@@ -54,5 +80,13 @@ pub fn run() {
     println!(
         "Part 2 (using zip): {:?}",
         zip_solution(3, &sonar_sweep_depths)
+    );
+    println!(
+        "Part 1 (using windows): {:?}",
+        with_windows(1, &sonar_sweep_depths)
+    );
+    println!(
+        "Part 2 (using windows): {:?}",
+        with_windows(3, &sonar_sweep_depths)
     );
 }
