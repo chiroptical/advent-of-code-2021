@@ -1,3 +1,4 @@
+use super::lib::{Monoid, Semigroup};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -57,36 +58,40 @@ struct Count {
     ones: u32,
 }
 
-fn gen_gamma_rate(
-    Count {
-        zeros: count_zero,
-        ones: count_one,
-    }: &Count,
-) -> u8 {
-    if count_zero > count_one {
-        0
-    } else {
-        1
+impl Semigroup for Count {
+    fn mappend(fst: Count, snd: Count) -> Count {
+        Count {
+            zeros: fst.zeros + snd.zeros,
+            ones: fst.ones + snd.ones,
+        }
     }
 }
 
-fn gen_epsilon_rate(
-    Count {
-        zeros: count_zero,
-        ones: count_one,
-    }: &Count,
-) -> u8 {
-    if count_zero > count_one {
-        1
+impl Monoid for Count {
+    fn mempty() -> Count {
+        Count { zeros: 0, ones: 0 }
+    }
+}
+
+fn flip_bit(bit: &Bit) -> Bit {
+    match bit {
+        Bit::Zero => Bit::One,
+        Bit::One => Bit::Zero,
+    }
+}
+
+fn gen_rate(Count { zeros, ones }: &Count) -> Bit {
+    if zeros > ones {
+        Bit::Zero
     } else {
-        0
+        Bit::One
     }
 }
 
 #[derive(Debug)]
 struct Rate {
-    gamma: Vec<u8>,
-    epsilon: Vec<u8>,
+    gamma: Vec<Bit>,
+    epsilon: Vec<Bit>,
 }
 
 fn convert_to_number(inp: &Vec<u8>) -> u32 {
@@ -98,11 +103,12 @@ fn convert_to_number(inp: &Vec<u8>) -> u32 {
 }
 
 fn build_rates(counts: Vec<Count>) -> Rate {
-    let mut gammas: Vec<u8> = Vec::new();
-    let mut epsilons: Vec<u8> = Vec::new();
+    let mut gammas: Vec<Bit> = Vec::new();
+    let mut epsilons: Vec<Bit> = Vec::new();
     counts.iter().for_each(|x| {
-        gammas.push(gen_gamma_rate(x));
-        epsilons.push(gen_epsilon_rate(x));
+        let rate = gen_rate(x);
+        epsilons.push(flip_bit(&rate));
+        gammas.push(rate);
     });
     Rate {
         gamma: gammas,
@@ -112,7 +118,7 @@ fn build_rates(counts: Vec<Count>) -> Rate {
 
 fn part1(inp: Vec<Vec<Bit>>) -> u32 {
     let number_of_bits = inp[0].len();
-    let mut counts: Vec<Count> = iter::repeat(Count { zeros: 0, ones: 0 })
+    let mut counts: Vec<Count> = iter::repeat(Monoid::mempty())
         .take(number_of_bits)
         .collect();
     for outer in inp.iter() {
@@ -128,42 +134,18 @@ fn part1(inp: Vec<Vec<Bit>>) -> u32 {
 
     // I super duper hate this code...
     // [0, 1, 0, 0, 1] -> 0b01001 -> 22
-    let gamma_num = convert_to_number(&gamma);
-    let epsilon_num = convert_to_number(&epsilon);
+    let gamma_num = convert_bit_vec_to_u32(gamma);
+    let epsilon_num = convert_bit_vec_to_u32(epsilon);
 
     gamma_num * epsilon_num
 }
 
 fn count_at(inp: &Vec<Vec<Bit>>, position: usize) -> Count {
-    let mut count = Count { zeros: 0, ones: 0 };
-    for outer in inp {
-        match outer[position] {
-            Bit::Zero => count.zeros += 1,
-            Bit::One => count.ones += 1,
-        }
-    }
-    count
-}
-
-fn oxygen_keep(Count { zeros: z, ones: o }: Count) -> Bit {
-    // When z = o, keep 'One's
-    if z > o {
-        Bit::Zero
-    } else {
-        Bit::One
-    }
-}
-
-fn whittle_oxygen(inp: &Vec<Vec<Bit>>, position: usize) -> Vec<Vec<Bit>> {
-    let mut vec: Vec<Vec<Bit>> = Vec::new();
-    let count = count_at(inp, position);
-    let keep = oxygen_keep(count);
-    for outer in inp.iter() {
-        if outer[position] == keep {
-            vec.push(outer.to_vec());
-        }
-    }
-    vec
+    inp.iter()
+        .fold(Monoid::mempty(), |acc, xs| match xs[position] {
+            Bit::Zero => Semigroup::mappend(acc, Count { zeros: 1, ones: 0 }),
+            Bit::One => Semigroup::mappend(acc, Count { zeros: 0, ones: 1 }),
+        })
 }
 
 fn convert_bit_vec_to_u32(inp: Vec<Bit>) -> u32 {
@@ -177,19 +159,10 @@ fn convert_bit_vec_to_u32(inp: Vec<Bit>) -> u32 {
     convert_to_number(&vec)
 }
 
-fn co2_keep(Count { zeros: z, ones: o }: Count) -> Bit {
-    // Keep the least common value, or Zero if the same
-    if o < z {
-        Bit::One
-    } else {
-        Bit::Zero
-    }
-}
-
-fn whittle_co2(inp: &Vec<Vec<Bit>>, position: usize) -> Vec<Vec<Bit>> {
+fn whittle(inp: &Vec<Vec<Bit>>, position: usize, keeper: impl Fn(Count) -> Bit) -> Vec<Vec<Bit>> {
     let mut vec: Vec<Vec<Bit>> = Vec::new();
     let count = count_at(inp, position);
-    let keep = co2_keep(count);
+    let keep = keeper(count);
     for outer in inp.iter() {
         if outer[position] == keep {
             vec.push(outer.to_vec());
@@ -198,33 +171,34 @@ fn whittle_co2(inp: &Vec<Vec<Bit>>, position: usize) -> Vec<Vec<Bit>> {
     vec
 }
 
-fn gen_oxygen_generator_rating(inp: &Vec<Vec<Bit>>) -> u32 {
+fn oxygen_keep(Count { zeros, ones }: Count) -> Bit {
+    // When z = o, keep 'One's
+    if zeros > ones {
+        Bit::Zero
+    } else {
+        Bit::One
+    }
+}
+
+fn co2_keep(count: Count) -> Bit {
+    flip_bit(&oxygen_keep(count))
+}
+
+fn gen_rating(inp: &Vec<Vec<Bit>>, keeper: &impl Fn(Count) -> Bit) -> u32 {
     let number_of_bits = inp[0].len();
-    let mut accumulator: Vec<Vec<Bit>> = whittle_oxygen(inp, 0);
+    let mut accumulator: Vec<Vec<Bit>> = whittle(inp, 0, &keeper);
     for idx in 1..number_of_bits {
         if accumulator.len() == 1 {
             break;
         }
-        accumulator = whittle_oxygen(&accumulator, idx);
+        accumulator = whittle(&accumulator, idx, &keeper);
     }
     convert_bit_vec_to_u32(accumulator[0].clone())
 }
 
-fn gen_co2_scrubber_rating(inp: &Vec<Vec<Bit>>) -> u32 {
-    let number_of_bits = inp[0].len();
-    let mut accumulator: Vec<Vec<Bit>> = whittle_co2(inp, 0);
-    for idx in 1..number_of_bits {
-        if accumulator.len() == 1 {
-            break;
-        }
-        accumulator = whittle_co2(&accumulator, idx);
-    }
-    convert_bit_vec_to_u32(accumulator[0].clone())
-}
-
-fn part2(inp: &Vec<Vec<Bit>>) -> u32 {
-    let oxygen_generator_rating = gen_oxygen_generator_rating(inp);
-    let co2_scrubber_rating = gen_co2_scrubber_rating(inp);
+fn part2(inp: Vec<Vec<Bit>>) -> u32 {
+    let oxygen_generator_rating = gen_rating(&inp, &oxygen_keep);
+    let co2_scrubber_rating = gen_rating(&inp, &co2_keep);
     oxygen_generator_rating * co2_scrubber_rating
 }
 
@@ -235,5 +209,5 @@ pub fn run() {
         .lines()
         .collect();
     println!("Day 3, Part 1 {:?}", part1(build_bit_2d_vec(&day3_input)));
-    println!("Day 3, Part 2 {:?}", part2(&build_bit_2d_vec(&day3_input)));
+    println!("Day 3, Part 2 {:?}", part2(build_bit_2d_vec(&day3_input)));
 }

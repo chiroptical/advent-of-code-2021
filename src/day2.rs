@@ -1,3 +1,4 @@
+use super::lib::{Monoid, Semigroup};
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -14,14 +15,6 @@ type Res<T, U> = IResult<T, U, VerboseError<T>>;
 // Parse a number like 42
 fn parse_digit(input: &str) -> Res<&str, i64> {
     map_res(recognize(digit1), str::parse)(input)
-}
-
-trait Semigroup {
-    fn mappend(_: Self, _: Self) -> Self;
-}
-
-trait Monoid {
-    fn mempty() -> Self;
 }
 
 #[derive(Debug)]

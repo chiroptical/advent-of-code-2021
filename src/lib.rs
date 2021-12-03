@@ -35,3 +35,11 @@ where
         _ => panic!("Unable to read the input..."),
     }
 }
+
+pub trait Semigroup {
+    fn mappend(_: Self, _: Self) -> Self;
+}
+
+pub trait Monoid {
+    fn mempty() -> Self;
+}
