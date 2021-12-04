@@ -1,15 +1,12 @@
-use super::lib::{Monoid, Semigroup};
+use super::lib::{Monoid, Semigroup, Res};
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    error::{context, VerboseError},
+    error::context,
     multi::many1,
-    IResult,
 };
 use std::cmp::PartialEq;
 use std::iter;
-
-type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
 #[derive(Debug, Clone, PartialEq)]
 enum Bit {

@@ -1,6 +1,9 @@
+use nom::{error::VerboseError, IResult};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Lines, Result as IOResult};
 use std::path::Path;
+
+pub type Res<T, U> = IResult<T, U, VerboseError<T>>;
 
 pub fn read_lines<P>(filename: P) -> IOResult<Lines<BufReader<File>>>
 // This is similar to a constraint in Haskell
