@@ -6,12 +6,12 @@ use nom::{
     sequence::{pair, tuple},
 };
 
-fn parse_marks(input: &str) -> Res<&str, Vec<u16>> {
+pub fn parse_marks(input: &str) -> Res<&str, Vec<u16>> {
     let (input, result) = separated_list1(char(','), u16)(input)?;
     Ok((input, result))
 }
 
-fn parse_board_line(input: &str) -> Res<&str, Vec<u16>> {
+pub fn parse_board_line(input: &str) -> Res<&str, Vec<u16>> {
     let (input, result) = separated_list1(space1, u16)(input)?;
     Ok((input, result))
 }
