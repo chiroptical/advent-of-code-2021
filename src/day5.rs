@@ -9,7 +9,7 @@ use nom::{
     character::complete::{char, i64, newline},
     multi::separated_list1,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 type Point = Coordinate<f64>;
 type LineSegment = Line<f64>;
@@ -122,11 +122,39 @@ fn generate_points_part_one(input: &LineSegment) -> Vec<(usize, usize)> {
     ret
 }
 
+fn build_range(x: f64, y: f64, reverse: bool) -> Vec<usize> {
+    let mut vec: Vec<usize> = Vec::new();
+    // (x as usize..y as usize + 1).collect();
+    if reverse {
+        vec = (y as usize..x as usize + 1).collect();
+        vec.reverse();
+    } else {
+        vec = (x as usize..y as usize + 1).collect();
+    }
+    vec
+}
+
+fn build_vec_flat(input: &LineSegment) -> Vec<(usize, usize)> {
+    let x_is_flat = input.start.x == input.end.x;
+    let y_is_flat = input.start.y == input.end.y;
+    let x: Vec<usize> = build_range(input.start.x, input.end.x, x_is_flat);
+    let y: Vec<usize> = build_range(input.start.y, input.end.y, y_is_flat);
+    println!("{:?}, {:?}", x, y);
+    if x_is_flat {
+        y.iter().map(|y| (input.start.x as usize, *y)).collect()
+    } else if y_is_flat {
+        x.iter().map(|x| (*x, input.start.x as usize)).collect()
+    } else {
+        panic!("build_vec_flat: Oh no...")
+    }
+}
+
 fn build_vec(input: &LineSegment) -> Vec<(usize, usize)> {
-    let ordered = order_line_segment(&input);
+    let x_is_decreasing = input.start.x > input.end.x;
+    let y_is_decreasing = input.start.y > input.end.y;
+    let x: Vec<usize> = build_range(input.start.x, input.end.x, x_is_decreasing);
+    let y: Vec<usize> = build_range(input.start.y, input.end.y, y_is_decreasing);
     let mut ret: Vec<(usize, usize)> = Vec::new();
-    let x: Vec<usize> = (ordered.start.x as usize..ordered.end.x as usize + 1).collect();
-    let y: Vec<usize> = (ordered.start.y as usize..ordered.end.y as usize + 1).collect();
     for (a, b) in x.iter().zip(y.iter()) {
         ret.push((*a, *b));
     }
@@ -136,19 +164,11 @@ fn build_vec(input: &LineSegment) -> Vec<(usize, usize)> {
 fn generate_points_part_two(input: &LineSegment) -> Vec<(usize, usize)> {
     let ordered = order_line_segment(&input);
     let mut ret: Vec<(usize, usize)> = Vec::new();
-    if ordered.slope() == 1.0 {
-        let x: Vec<usize> = (ordered.start.x as usize..ordered.end.x as usize + 1).collect();
-        let y: Vec<usize> = (ordered.start.y as usize..ordered.end.y as usize + 1).collect();
-        for (a, b) in x.iter().zip(y.iter()) {
-            ret.push((*a, *b));
-        }
-    } else if ordered.slope() == -1.0 {
-        let mut flipped = build_vec(&swap_line_segment(&ordered));
-        ret.append(&mut flipped);
+    if ordered.slope() == 1.0 || ordered.slope() == -1.0 {
+        ret.append(&mut build_vec(&ordered));
     } else {
-        ret.append(&mut generate_points_part_one(input));
+        ret.append(&mut build_vec_flat(&ordered));
     }
-
     ret
 }
 
@@ -232,9 +252,13 @@ pub fn run() {
     let input_part_two = parse_part_two(input_str).unwrap().1;
 
     // Testing various functions
-    // let segment_one = LineSegment {start: make_point(6, 4), end: make_point(2, 0)};
-    // let segment_two = LineSegment {start: make_point(9, 4), end: make_point(3, 4)};
-    // println!("Intersection: {:?}", line_intersection(segment_one, segment_two));
+    let segment_one = LineSegment {
+        start: make_point(4, 1),
+        end: make_point(4, 5),
+    };
+    // println!("Slope: {:?}", segment_one);
+    // println!("Slope: {:?}", segment_one.slope());
+    println!("Build vec: {:?}", build_vec_flat(&segment_one));
 
     // Part2
     println!("Part 2: {:?}", part2(&input_part_two));
