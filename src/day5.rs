@@ -9,7 +9,7 @@ use nom::{
     character::complete::{char, i64, newline},
     multi::separated_list1,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 type Point = Coordinate<f64>;
 type LineSegment = Line<f64>;
@@ -134,22 +134,23 @@ fn build_range(x: f64, y: f64, reverse: bool) -> Vec<usize> {
     vec
 }
 
-fn build_vec_flat(input: &LineSegment) -> Vec<(usize, usize)> {
+fn build_vec_hv(input: &LineSegment) -> Vec<(usize, usize)> {
+    let x_is_decreasing = input.start.x > input.end.x;
+    let y_is_decreasing = input.start.y > input.end.y;
     let x_is_flat = input.start.x == input.end.x;
     let y_is_flat = input.start.y == input.end.y;
-    let x: Vec<usize> = build_range(input.start.x, input.end.x, x_is_flat);
-    let y: Vec<usize> = build_range(input.start.y, input.end.y, y_is_flat);
-    println!("{:?}, {:?}", x, y);
+    let x: Vec<usize> = build_range(input.start.x, input.end.x, x_is_decreasing);
+    let y: Vec<usize> = build_range(input.start.y, input.end.y, y_is_decreasing);
     if x_is_flat {
         y.iter().map(|y| (input.start.x as usize, *y)).collect()
     } else if y_is_flat {
-        x.iter().map(|x| (*x, input.start.x as usize)).collect()
+        x.iter().map(|x| (*x, input.start.y as usize)).collect()
     } else {
-        panic!("build_vec_flat: Oh no...")
+        panic!("build_vec_hv: Oh no...")
     }
 }
 
-fn build_vec(input: &LineSegment) -> Vec<(usize, usize)> {
+fn build_vec_diagonal(input: &LineSegment) -> Vec<(usize, usize)> {
     let x_is_decreasing = input.start.x > input.end.x;
     let y_is_decreasing = input.start.y > input.end.y;
     let x: Vec<usize> = build_range(input.start.x, input.end.x, x_is_decreasing);
@@ -162,12 +163,11 @@ fn build_vec(input: &LineSegment) -> Vec<(usize, usize)> {
 }
 
 fn generate_points_part_two(input: &LineSegment) -> Vec<(usize, usize)> {
-    let ordered = order_line_segment(&input);
     let mut ret: Vec<(usize, usize)> = Vec::new();
-    if ordered.slope() == 1.0 || ordered.slope() == -1.0 {
-        ret.append(&mut build_vec(&ordered));
+    if input.slope() == 1.0 || input.slope() == -1.0 {
+        ret.append(&mut build_vec_diagonal(&input));
     } else {
-        ret.append(&mut build_vec_flat(&ordered));
+        ret.append(&mut build_vec_hv(&input));
     }
     ret
 }
@@ -252,13 +252,46 @@ pub fn run() {
     let input_part_two = parse_part_two(input_str).unwrap().1;
 
     // Testing various functions
-    let segment_one = LineSegment {
+    let segment = LineSegment {
         start: make_point(4, 1),
-        end: make_point(4, 5),
+        end: make_point(4, 3),
     };
-    // println!("Slope: {:?}", segment_one);
-    // println!("Slope: {:?}", segment_one.slope());
-    println!("Build vec: {:?}", build_vec_flat(&segment_one));
+    assert_eq!(build_vec_hv(&segment), vec![(4, 1), (4, 2), (4, 3)]);
+    let segment = LineSegment {
+        start: make_point(1, 4),
+        end: make_point(3, 4),
+    };
+    assert_eq!(build_vec_hv(&segment), vec![(1, 4), (2, 4), (3, 4)]);
+    let segment = LineSegment {
+        start: make_point(4, 3),
+        end: make_point(4, 1),
+    };
+    assert_eq!(build_vec_hv(&segment), vec![(4, 3), (4, 2), (4, 1)]);
+    let segment = LineSegment {
+        start: make_point(3, 4),
+        end: make_point(1, 4),
+    };
+    assert_eq!(build_vec_hv(&segment), vec![(3, 4), (2, 4), (1, 4)]);
+    let segment = LineSegment {
+        start: make_point(3, 3),
+        end: make_point(1, 1),
+    };
+    assert_eq!(build_vec_diagonal(&segment), vec![(3, 3), (2, 2), (1, 1)]);
+    let segment = LineSegment {
+        start: make_point(1, 1),
+        end: make_point(3, 3),
+    };
+    assert_eq!(build_vec_diagonal(&segment), vec![(1, 1), (2, 2), (3, 3)]);
+    let segment = LineSegment {
+        start: make_point(1, 3),
+        end: make_point(3, 1),
+    };
+    assert_eq!(build_vec_diagonal(&segment), vec![(1, 3), (2, 2), (3, 1)]);
+    let segment = LineSegment {
+        start: make_point(3, 1),
+        end: make_point(1, 3),
+    };
+    assert_eq!(build_vec_diagonal(&segment), vec![(3, 1), (2, 2), (1, 3)]);
 
     // Part2
     println!("Part 2: {:?}", part2(&input_part_two));
