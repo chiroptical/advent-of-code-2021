@@ -23,9 +23,9 @@ fn main() {
     // day3::run();
     // day4::run();
     // nalgebra_testing::run();
-    // day5::run();
+    day5::run();
     // day6::run();
-    day7::run();
+    // day7::run();
 
     println!("{:?}", safe_convert(&1.4));
 }

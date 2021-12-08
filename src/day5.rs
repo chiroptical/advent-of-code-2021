@@ -213,7 +213,9 @@ fn part2(input: &Vec<LineSegment>) -> usize {
                     intersection: i,
                     is_proper: _,
                 }) => {
-                    set.insert((i.x as usize, i.y as usize));
+                    if i.x.fract() == 0.0 || i.y.fract() == 0.0 {
+                        set.insert((i.x as usize, i.y as usize));
+                    }
                 }
                 Some(LineIntersection::Collinear { intersection: i }) => {
                     // Need the overlapping points from line, push onto overlapping_points
