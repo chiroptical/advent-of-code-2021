@@ -49,7 +49,7 @@ pub fn run() {
         .map(|InsAndOuts { ins: _, outs }| {
             let mut obvious_numbers = 0;
             for out in outs {
-                if let Some(_) = find_obvious_numbers(&out) {
+                if find_obvious_numbers(&out).is_some() {
                     obvious_numbers += 1
                 }
             }
