@@ -21,7 +21,8 @@ fn parse_lines(input: &str) -> Res<&str, Matrix> {
     Ok((input, {
         let num_rows = res.len();
         let num_cols = res[0].len();
-        Matrix::from_vec(num_cols, num_rows, res.into_iter().flatten().collect())
+        // from_vec reads in column major order, but index reads (row, col)
+        Matrix::from_vec(num_cols, num_rows, res.into_iter().flatten().collect()).transpose()
     }))
 }
 
@@ -53,7 +54,7 @@ fn look_up(matrix: &Matrix, row: &usize, col: &usize) -> bool {
     matrix.index((*row, *col)) < matrix.index((*row - 1, *col))
 }
 
-fn is_lower_than_neighbors(matrix: &Matrix, col: &usize, row: &usize) -> bool {
+fn is_lower_than_neighbors(matrix: &Matrix, row: &usize, col: &usize) -> bool {
     look_up(matrix, row, col)
         && look_down(matrix, row, col)
         && look_left(matrix, row, col)
@@ -62,20 +63,10 @@ fn is_lower_than_neighbors(matrix: &Matrix, col: &usize, row: &usize) -> bool {
 
 fn part1(matrix: &Matrix) -> usize {
     let mut risk_level: usize = 0;
-
-    assert_eq!(look_left(matrix, &0, &0), true);
-    assert_eq!(look_right(matrix, &0, &(matrix.ncols() - 1)), true);
-    assert_eq!(look_up(matrix, &0, &0), true);
-    assert_eq!(look_down(matrix, &(matrix.nrows() - 1), &0), true);
-
-    println!("matrix[0][0]: {:?}", matrix.index((0, 0)));
-    println!("matrix[1][0]: {:?}", matrix.index((1, 0)));
-
     for row in 0..matrix.nrows() {
         for col in 0..matrix.ncols() {
-            if is_lower_than_neighbors(matrix, &col, &row) {
-                println!("row: {:?} col: {:?}", row, col);
-                risk_level += matrix.index((col, row)) + 1
+            if is_lower_than_neighbors(matrix, &row, &col) {
+                risk_level += matrix.index((row, col)) + 1
             }
         }
     }
@@ -92,6 +83,5 @@ pub fn run() {
     let input_str = include_str!("../inputs/day9");
     let test = parse_lines(test_str).unwrap().1;
     let input = parse_lines(input_str).unwrap().1;
-    println!("{:?}", test);
-    println!("{:?}", part1(&test));
+    println!("{:?}", part1(&input));
 }
