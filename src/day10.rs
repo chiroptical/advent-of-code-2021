@@ -1,111 +1,154 @@
-// use nom::character::complete::newline;
-use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::combinator::opt;
-use nom::error::{ContextError, ErrorKind, ParseError};
-use nom::multi::many1;
-use nom::sequence::delimited;
-use nom::IResult;
-use std::fmt::{Display, Formatter, Result};
-
-pub type Res<T, U> = IResult<T, U, Expected>;
-
-#[derive(Debug)]
-enum Expected {
-    Parens,
-    Bracket,
-    Birdtrack,
-    Curly,
-    Unexpected,
-}
-
-impl Display for Expected {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        write!(f, "{:?}", self)
+fn is_opening_char(c: &char) -> bool {
+    match c {
+        '(' => true,
+        '[' => true,
+        '<' => true,
+        '{' => true,
+        _ => false,
     }
 }
 
-impl ParseError<&str> for Expected {
-    // on one line, we show the error code and the input that caused it
-    fn from_error_kind(input: &str, kind: ErrorKind) -> Self {
-        let message = format!("{:?}:\t{:?}\n", kind, input);
-        println!("{}", message);
-        Expected::Unexpected
-    }
-
-    // if combining multiple errors, we show them one after the other
-    fn append(input: &str, kind: ErrorKind, other: Self) -> Self {
-        let message = format!("{}{:?}:\t{:?}\n", other, kind, input);
-        println!("{}", message);
-        Expected::Unexpected
-    }
-
-    fn from_char(input: &str, c: char) -> Self {
-        let message = format!("'{}':\t{:?}\n", c, input);
-        println!("{}", message);
-        Expected::Unexpected
-    }
-
-    fn or(self, other: Self) -> Self {
-        let message = format!("{}\tOR\n{}\n", self, other);
-        println!("{}", message);
-        Expected::Unexpected
+fn check_if_match(x: &char, y: &char) -> bool {
+    match (x, y) {
+        ('(', ')') => true,
+        ('[', ']') => true,
+        ('{', '}') => true,
+        ('<', '>') => true,
+        _ => false,
     }
 }
 
-impl ContextError<&str> for Expected {
-    fn add_context(input: &str, ctx: &'static str, other: Self) -> Self {
-        let message = format!("{}\"{}\":\t{:?}\n", other, ctx, input);
-        println!("{}", message);
-        other
+fn process_chunk(input: &str) -> Result<(), char> {
+    let mut char_stack: Vec<char> = Vec::new();
+    for c in input.chars() {
+        if is_opening_char(&c) {
+            char_stack.push(c)
+        } else {
+            match char_stack.last() {
+                None => return Err(c),
+                Some(last_char) => {
+                    if check_if_match(last_char, &c) {
+                        char_stack.pop();
+                    } else {
+                        return Err(c);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn generate_score(input: Result<(), char>) -> usize {
+    match input {
+        Err(')') => 3,
+        Err(']') => 57,
+        Err('}') => 1197,
+        Err('>') => 25137,
+        _ => 0,
     }
 }
 
-fn parse_chunk(input: &str) -> Res<&str, ()> {
-    let result = many1(alt((parse_parens, parse_brackets)))(input);
-    if let Err(e) = result {
-        Err(e)
-    } else {
-        Ok(("", ()))
+fn process(input: &Vec<&str>) -> usize {
+    input
+        .iter()
+        .map(|x| process_chunk(x))
+        .fold(0, |acc, x| acc + generate_score(x))
+}
+
+fn find_stack(input: &str) -> Result<Vec<char>, ()> {
+    let mut char_stack: Vec<char> = Vec::new();
+    for c in input.chars() {
+        if is_opening_char(&c) {
+            char_stack.push(c)
+        } else {
+            match char_stack.last() {
+                None => return Err(()),
+                Some(last_char) => {
+                    if check_if_match(last_char, &c) {
+                        char_stack.pop();
+                    } else {
+                        return Err(());
+                    }
+                }
+            }
+        }
+    }
+    Ok(char_stack)
+}
+
+fn clear_it_out(input: char) -> char {
+    match input {
+        '(' => ')',
+        '{' => '}',
+        '[' => ']',
+        '<' => '>',
+        _ => panic!("Got {:?} but expected opening character", input),
     }
 }
 
-fn parse_parens(input: &str) -> Res<&str, ()> {
-    let result = delimited(tag("("), opt(parse_chunk), tag(")"))(input);
-    if let Err(e) = result {
-        Err(e)
-    } else {
-        Ok((input, ()))
+fn complete_stack(input: &Vec<char>) -> Vec<char> {
+    // let mut result: Vec<char> = Vec::new();
+    input.iter().rev().map(|x| clear_it_out(*x)).collect()
+}
+
+fn character_scores_part_2(input: char) -> usize {
+    match input {
+        ')' => 1,
+        ']' => 2,
+        '}' => 3,
+        '>' => 4,
+        _ => panic!("Got {:?} but expected opening character", input),
     }
 }
 
-fn parse_brackets(input: &str) -> Res<&str, ()> {
-    let result = delimited(tag("["), opt(parse_chunk), tag("]"))(input);
-    if let Err(e) = result {
-        Err(e)
-    } else {
-        Ok((input, ()))
+fn generate_score_part_2(input: Vec<char>) -> usize {
+    let mut current_score: usize = 0;
+    for c in input {
+        current_score = current_score * 5 + character_scores_part_2(c);
     }
+    current_score
 }
 
-// fn parse_birdtracks(input: &str) -> Res<&str, ()> {
-//     let (input, _) = delimited(tag("<"), opt(parse_chunk), tag(">"))(input)?;
-//     Ok((input, ()))
-// }
-//
-// fn parse_curlys(input: &str) -> Res<&str, ()> {
-//     let (input, _) = delimited(tag("{"), opt(parse_chunk), tag("}"))(input)?;
-//     Ok((input, ()))
-// }
-
-fn check_line(input: &str) -> bool {
-    let can_parse = parse_chunk(input);
-    can_parse.is_ok()
+fn part2(input: &Vec<&str>) -> usize {
+    let mut scores: Vec<usize> = Vec::new();
+    for line in input {
+        if let Ok(stack) = find_stack(line) {
+            let completed_stack = complete_stack(&stack);
+            scores.push(generate_score_part_2(completed_stack));
+        }
+    }
+    scores.sort();
+    // The number of scores must be odd
+    assert_eq!(scores.len() % 2, 1);
+    let index: usize = scores.len() / 2;
+    scores[index]
 }
 
 pub fn run() {
-    let chunk = "[<>({}){}[([])<>]]";
-    assert_eq!(parse_chunk(chunk).unwrap(), ());
+    let chunk = "([])";
+    assert_eq!(process_chunk(&chunk), Ok(()));
 
-    let test_str = include_str!("../inputs/day10.test");
+    let chunk = "[<>({}){}[([])<>]]";
+    assert_eq!(process_chunk(&chunk), Ok(()));
+
+    let chunk = "{()()()>";
+    assert_eq!(process_chunk(&chunk), Err('>'));
+
+    let chunk = "<([]){()}[{}])";
+    assert_eq!(process_chunk(&chunk), Err(')'));
+
+    let chunk = "{([(<{}[<>[]}>{[]{[(<()>";
+    assert_eq!(process_chunk(&chunk), Err('}'));
+
+    let chunk = "<{([([[(<>()){}]>(<<{{";
+    assert_eq!(process_chunk(&chunk), Err('>'));
+
+    let test_str: Vec<&str> = include_str!("../inputs/day10.test").lines().collect();
+    assert_eq!(process(&test_str), 26397);
+
+    let input_str: Vec<&str> = include_str!("../inputs/day10").lines().collect();
+    assert_eq!(process(&input_str), 318081);
+    assert_eq!(part2(&test_str), 288957);
+    println!("{:?}", part2(&input_str));
 }
