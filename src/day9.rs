@@ -1,5 +1,4 @@
 use super::lib::Res;
-use itertools::Itertools;
 use nom::character::complete::newline;
 use nom::multi::separated_list1;
 use nom::{character::complete::one_of, multi::many1};
@@ -77,125 +76,182 @@ fn part1(matrix: &Matrix) -> usize {
     risk_level
 }
 
-fn search_left(basin_matrix: &BasinMatrix, (row, col): &RowAndCol) -> Option<(usize, RowAndCol)> {
-    if *col == 0 {
-        None
-    } else if let (row_and_col, Some(v)) = basin_matrix.index((*row, *col - 1)) {
-        Some((*v, *row_and_col))
-    } else {
-        None
-    }
-}
+type BasinMatrix = na::DMatrix<Option<usize>>;
 
-fn search_right(basin_matrix: &BasinMatrix, (row, col): &RowAndCol) -> Option<(usize, RowAndCol)> {
-    if *col == basin_matrix.ncols() - 1 {
-        None
-    } else if let (row_and_col, Some(v)) = basin_matrix.index((*row, *col + 1)) {
-        Some((*v, *row_and_col))
-    } else {
-        None
-    }
-}
-
-fn search_down(basin_matrix: &BasinMatrix, (row, col): &RowAndCol) -> Option<(usize, RowAndCol)> {
-    if *row == basin_matrix.nrows() - 1 {
-        None
-    } else if let (row_and_col, Some(v)) = basin_matrix.index((*row + 1, *col)) {
-        Some((*v, *row_and_col))
-    } else {
-        None
-    }
-}
-
-fn search_up(basin_matrix: &BasinMatrix, (row, col): &RowAndCol) -> Option<(usize, RowAndCol)> {
-    if *row == 0 {
-        None
-    } else if let (row_and_col, Some(v)) = basin_matrix.index((*row - 1, *col)) {
-        Some((*v, *row_and_col))
-    } else {
-        None
-    }
-}
-
-fn search(basin_matrix: &BasinMatrix, row_and_col: &RowAndCol) -> Vec<(usize, RowAndCol)> {
-    let vec: Vec<Option<(usize, RowAndCol)>> = vec![
-        search_left(basin_matrix, row_and_col),
-        search_right(basin_matrix, row_and_col),
-        search_up(basin_matrix, row_and_col),
-        search_down(basin_matrix, row_and_col),
-    ];
-    println!("search: {:?}", vec);
-    vec.into_iter().flatten().collect()
-}
-
-type BasinMatrix = na::DMatrix<(RowAndCol, Option<usize>)>;
-
-// The usize is the basin the 'RowAndCol' belongs to
-type Basins = HashMap<RowAndCol, usize>;
-
-fn part2(matrix: &Matrix) -> usize {
-    let basin_matrix: BasinMatrix = matrix.map_with_location(|row, col, x| {
-        if x == 9 {
-            ((row, col), None)
-        } else {
-            ((row, col), Some(x))
-        }
-    });
-    let mut basins: Basins = HashMap::new();
-    let mut basin_counter: usize = 0;
-
+// [   | b |   ]
+// [ d | x | e ]
+// [   | g |   ]
+fn propogate(basin_matrix: &mut BasinMatrix, basin_counter: usize) {
     for row in 0..basin_matrix.nrows() {
         for col in 0..basin_matrix.ncols() {
-            // We should only look for basins around 'Some(_)'
-            if basin_matrix.index((row, col)).1.is_some() {
-                // Skip search for entries that are already in the basins
-                if let Some(_) = basins.get(&(row, col)) {
-                    continue;
-                }
-
-                let search_results = search(&basin_matrix, &(row, col));
-
-                // From the search results, build a list of 'the_basin's
-                let mut the_basin: Vec<usize> = Vec::new();
-                for row_and_col in search_results.clone() {
-                    if let Some(b) = basins.get(&row_and_col.1) {
-                        the_basin.push(*b);
+            if basin_matrix[(row, col)] == Some(basin_counter) {
+                let is_safe_sub_row = row != 0;
+                let is_safe_sub_col = col != 0;
+                let is_safe_add_row = row != basin_matrix.nrows() - 1;
+                let is_safe_add_col = col != basin_matrix.ncols() - 1;
+                // b
+                if is_safe_sub_row {
+                    if basin_matrix[(row - 1, col)] != Some(0) {
+                        basin_matrix[(row - 1, col)] = Some(basin_counter);
                     }
                 }
-
-                // If the_basin is empty, we make a new basin and insert the 'RowAndCol's
-                if the_basin.len() == 0 {
-                    for row_and_col in search_results {
-                        basins.entry(row_and_col.1).or_insert(basin_counter);
+                // d
+                if is_safe_sub_col {
+                    if basin_matrix[(row, col - 1)] != Some(0) {
+                        basin_matrix[(row, col - 1)] = Some(basin_counter);
                     }
-                    basin_counter += 1;
                 }
-                // otherwise, 'the_basin' exists, all entries in 'the_basin' should be equal, and
-                // we can insert all of the 'RowAndCol's into the basin
-                else {
-                    let should_be = the_basin[0];
-                    println!(
-                        "{:?} {:?} {:?} {:?}",
-                        the_basin,
-                        search_results,
-                        (row, col),
-                        basin_matrix.index((row, col))
-                    );
-                    assert_eq!(the_basin.clone().iter().all(|x| *x == should_be), true);
-                    for row_and_col in search_results {
-                        basins.entry(row_and_col.1).or_insert(should_be);
+                // e
+                if is_safe_add_col {
+                    if basin_matrix[(row, col + 1)] != Some(0) {
+                        basin_matrix[(row, col + 1)] = Some(basin_counter);
+                    }
+                }
+                // g
+                if is_safe_add_row {
+                    if basin_matrix[(row + 1, col)] != Some(0) {
+                        basin_matrix[(row + 1, col)] = Some(basin_counter);
                     }
                 }
             }
         }
     }
+}
 
-    let mut count_vec: Vec<usize> = Vec::new();
-    for (_, group) in &basins.values().sorted().group_by(|x| *x) {
-        count_vec.push(group.collect::<Vec<&usize>>().len());
+// [   | b |   ]
+// [ d | x | e ]
+// [   | g |   ]
+fn fill_larger_number(basin_matrix: &mut BasinMatrix) {
+    for row in 0..basin_matrix.nrows() {
+        for col in 0..basin_matrix.ncols() {
+            if let Some(val) = basin_matrix[(row, col)] {
+                // Skip zeros
+                if val == 0 {
+                    continue;
+                }
+                // Determine safe directions
+                let is_safe_sub_row = row != 0;
+                let is_safe_sub_col = col != 0;
+                let is_safe_add_row = row != basin_matrix.nrows() - 1;
+                let is_safe_add_col = col != basin_matrix.ncols() - 1;
+                // b
+                if is_safe_sub_row {
+                    if basin_matrix[(row - 1, col)] != Some(0) {
+                        if basin_matrix[(row - 1, col)] > basin_matrix[(row, col)] {
+                            basin_matrix[(row, col)] = basin_matrix[(row - 1, col)]
+                        } else {
+                            basin_matrix[(row - 1, col)] = basin_matrix[(row, col)];
+                        }
+                    }
+                }
+                // d
+                if is_safe_sub_col {
+                    if basin_matrix[(row, col - 1)] != Some(0) {
+                        if basin_matrix[(row, col - 1)] > basin_matrix[(row, col)] {
+                            basin_matrix[(row, col)] = basin_matrix[(row, col - 1)];
+                        } else {
+                            basin_matrix[(row, col - 1)] = basin_matrix[(row, col)];
+                        }
+                    }
+                }
+                // e
+                if is_safe_add_col {
+                    if basin_matrix[(row, col + 1)] != Some(0) {
+                        if basin_matrix[(row, col + 1)] > basin_matrix[(row, col)] {
+                            basin_matrix[(row, col)] = basin_matrix[(row, col + 1)];
+                        } else {
+                            basin_matrix[(row, col + 1)] = basin_matrix[(row, col)];
+                        }
+                    }
+                }
+                // g
+                if is_safe_add_row {
+                    if basin_matrix[(row + 1, col)] != Some(0) {
+                        if basin_matrix[(row + 1, col)] > basin_matrix[(row, col)] {
+                            basin_matrix[(row, col)] = basin_matrix[(row + 1, col)];
+                        } else {
+                            basin_matrix[(row + 1, col)] = basin_matrix[(row, col)];
+                        }
+                    }
+                }
+            }
+        }
     }
-    count_vec.sort();
-    count_vec.iter().rev().take(3).fold(1, |acc, x| acc * x)
+}
+
+fn count_basins(basin_matrix: &BasinMatrix) -> HashMap<usize, usize> {
+    let mut basin_map: HashMap<usize, usize> = HashMap::new();
+    for row in 0..basin_matrix.nrows() {
+        for col in 0..basin_matrix.ncols() {
+            if let Some(val) = basin_matrix[(row, col)] {
+                if val != 0 {
+                    *basin_map.entry(val).or_insert(0) += 1;
+                }
+            }
+        }
+    }
+    basin_map
+}
+
+fn part2(matrix: &Matrix) -> usize {
+    let mut basin_matrix: BasinMatrix =
+        BasinMatrix::from_element(matrix.nrows(), matrix.ncols(), None);
+    // println!("{:?} {:?} {:?} {:?}", matrix.nrows(), matrix.ncols(), basin_matrix.nrows(), basin_matrix.ncols());
+
+    let mut basin_counter: usize = 1;
+    basin_matrix[(0, 0)] = Some(basin_counter);
+
+    // Fill all the nines with zero
+    for row in 0..matrix.nrows() {
+        for col in 0..matrix.ncols() {
+            let parent_value = matrix.index((row, col));
+            // If we get a nine, it is a zero and we shouldn't set values
+            if *parent_value == 9 {
+                basin_matrix[(row, col)] = Some(0);
+            }
+        }
+    }
+
+    propogate(&mut basin_matrix, basin_counter);
+    while basin_matrix.iter().any(|x| x.is_none()) {
+        let mut index: (usize, usize) = (0, 0);
+        for row in 0..matrix.nrows() {
+            for col in 0..matrix.ncols() {
+                if basin_matrix[(row, col)] == None {
+                    index = (row, col);
+                    break;
+                }
+            }
+        }
+        basin_counter += 1;
+        basin_matrix[index] = Some(basin_counter);
+        propogate(&mut basin_matrix, basin_counter);
+    }
+    // Initialize for iteration
+    let mut before = count_basins(&basin_matrix);
+    fill_larger_number(&mut basin_matrix);
+    let mut after = count_basins(&basin_matrix);
+    // Run this until the hashmap doesn't change
+    while before != after {
+        before = after.clone();
+        fill_larger_number(&mut basin_matrix);
+        after = count_basins(&basin_matrix);
+    }
+
+    let mut sizes: Vec<usize> = after.values().map(|x| *x).collect();
+    sizes.sort();
+    sizes.iter().rev().take(3).fold(1, |acc, x| acc * *x)
+}
+
+fn display(matrix: &BasinMatrix) {
+    for row in matrix.nrows() - 10..matrix.nrows() {
+        for col in 0..11 {
+            if let Some(v) = matrix[(row, col)] {
+                print!("{:7}", v);
+            }
+        }
+        println!();
+    }
 }
 
 pub fn run() {
@@ -209,5 +265,9 @@ pub fn run() {
     let test = parse_lines(test_str).unwrap().1;
     let input = parse_lines(input_str).unwrap().1;
     println!("Part 1 {:?}", part1(&input));
-    println!("Part 2 {:?}", part2(&input));
+    // 54756 is too low
+    // 79376 is too low
+    // 893564 is too low
+    // 1123524 is correct :)
+    println!("{:?}", part2(&input));
 }
